@@ -1,0 +1,48 @@
+name: Daily raids
+
+on:
+  schedule:
+    # 18:00 in Europe/Amsterdam is 16:00 UTC in summer and 17:00 UTC in winter.
+    # GitHub cron only knows UTC, so this fires at 16, 17 and 18 UTC (the last one
+    # is a backup) and the script only posts on the first run after the reset.
+    - cron: "0 16,17,18 * * *"
+  workflow_dispatch: # "Run workflow" button: posts the results so far
+
+permissions:
+  contents: write # to commit data/snapshot.json
+
+concurrency: daily-raids
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Post daily raids
+        run: python daily_raids.py
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RAIDS: TNA # comma separated, choose from: TNA, NOTG, TCC, NOL, TWP
+          TIMEZONE: Europe/Amsterdam
+          RESET_HOUR: 18
+          PLAYER_LIMIT: 1000
+          GUILD_LIMIT: 100
+          SHOW_PLAYERS: 50
+          SHOW_GUILDS: 20
+
+      - name: Save snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/snapshot.json
+          git diff --cached --quiet || git commit -m "Snapshot $(date -u +%F)"
+          git push
