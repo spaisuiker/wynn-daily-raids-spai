@@ -298,8 +298,8 @@ def main():
 
     if previous is None:
         messages = [(
-            f"First snapshot saved. From now on the daily raids are posted here every day "
-            f"after the {RESET_HOUR:02d}:00 reset ({TZ.key}).",
+            "First snapshot saved. From now on the daily raids are posted here every day "
+            "after the gambit reset.",
             [],
         )]
     else:
