@@ -89,8 +89,8 @@ def fetch_board(board, limit):
     raise RuntimeError(f"Wynncraft API keeps failing for {board}")
 
 
-def daily_rows(today, previous, show):
-    """Players/guilds that did runs since the previous snapshot, best first."""
+def daily_rows(today, previous):
+    """All players/guilds that did runs since the previous snapshot, best first."""
     rows = []
     for uuid, cur in today.items():
         old = previous.get(uuid)
@@ -101,7 +101,7 @@ def daily_rows(today, previous, show):
             continue
         rows.append({"rank": cur["rank"], "name": cur["name"], "score": score, "comp": comp, "gambits": gambits})
     rows.sort(key=lambda r: (-r["comp"], -r["score"], r["name"].lower()))
-    return rows[:show]
+    return rows
 
 
 # ---------------------------------------------------------------- raid days
@@ -251,20 +251,28 @@ def build_messages(boards, previous, now, interim):
     messages = []
     for short, full, key in RAIDS:
         images = []
-        guilds = daily_rows(boards[f"{key}SrGuilds"], previous["boards"].get(f"{key}SrGuilds", {}), SHOW_GUILDS)
-        players = daily_rows(boards[f"{key}SrPlayers"], previous["boards"].get(f"{key}SrPlayers", {}), SHOW_PLAYERS)
+        guilds = daily_rows(boards[f"{key}SrGuilds"], previous["boards"].get(f"{key}SrGuilds", {}))
+        players = daily_rows(boards[f"{key}SrPlayers"], previous["boards"].get(f"{key}SrPlayers", {}))
         if guilds:
-            title = f"{short} Guild Raids {label}: Top {len(guilds)}"
-            images.append((f"{short}_guilds_{slug}.png", render_table(title, guilds)))
+            shown = guilds[:SHOW_GUILDS]
+            title = f"{short} Guild Raids {label}: Top {len(shown)}"
+            images.append((f"{short}_guilds_{slug}.png", render_table(title, shown)))
         if players:
-            title = f"{short} Player Raids {label}: Top {len(players)}"
-            images.append((f"{short}_players_{slug}.png", render_table(title, players)))
+            shown = players[:SHOW_PLAYERS]
+            title = f"{short} Player Raids {label}: Top {len(shown)}"
+            images.append((f"{short}_players_{slug}.png", render_table(title, shown)))
         if images:
             if interim:
                 line = f"Daily raids for **{label}** so far (since {since:%Y-%m-%d %H:%M}, manual run)"
             else:
                 line = f"Daily raids for **{label}**"
-            messages.append((f"## {full} ({short})\n{line}", images))
+            # counted over everyone tracked, not just the rows in the images
+            totals = (
+                f"Total completions{' so far' if interim else ''}: "
+                f"**{sum(r['comp'] for r in guilds):,}** by the top {GUILD_LIMIT} guilds, "
+                f"**{sum(r['comp'] for r in players):,}** by the top {PLAYER_LIMIT} players"
+            )
+            messages.append((f"## {full} ({short})\n{line}\n{totals}", images))
     if not messages:
         names = ", ".join(short for short, _, _ in RAIDS)
         messages.append((f"No {names} raid runs found for **{label}**{' so far' if interim else ''}.", []))
