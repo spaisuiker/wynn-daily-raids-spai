@@ -276,15 +276,18 @@ def main():
     webhook = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
     if not webhook and not dry_run:
         sys.exit("DISCORD_WEBHOOK_URL is not set (add it as a GitHub Actions secret)")
-    # A manual "Run workflow" click posts the numbers so far but keeps the daily baseline.
-    interim = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
-
     now = datetime.now(timezone.utc)
     previous = json.loads(SNAPSHOT.read_text(encoding="utf-8")) if SNAPSHOT.exists() else None
 
-    # The schedule fires a few times around the reset (UTC cron vs summer/winter time);
+    # A manual "Run workflow" click posts the numbers so far and keeps the daily baseline,
+    # unless a reset is due: then it does the daily post the schedule would have done.
+    manual = os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch"
+    due = previous is not None and reset_due(previous, now)
+    interim = manual and not due
+
+    # The schedule fires several times around the reset (GitHub can delay or drop runs);
     # only the first run after the reset posts.
-    if previous and not interim and not dry_run and not reset_due(previous, now):
+    if previous and not manual and not dry_run and not due:
         taken = datetime.fromisoformat(previous["taken_at"]).astimezone(TZ)
         print(f"Nothing to do: last snapshot {taken:%Y-%m-%d %H:%M} is newer than the last reset "
               f"({last_reset(now):%Y-%m-%d %H:%M} {TZ.key}).")
