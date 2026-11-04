@@ -5,7 +5,7 @@ on:
     # 18:00 in Europe/Amsterdam is 16:00 UTC in summer and 17:00 UTC in winter.
     # GitHub cron only knows UTC, so this fires at 16, 17 and 18 UTC (the last one
     # is a backup) and the script only posts on the first run after the reset.
-    - cron: "0 16,17,18 * * *"
+      - cron: "3,18,33,48 16-18 * * *"
   workflow_dispatch: # "Run workflow" button: posts the results so far
 
 permissions:
