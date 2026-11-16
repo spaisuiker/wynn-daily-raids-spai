@@ -31,7 +31,7 @@ jobs:
         run: python daily_raids.py
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          RAIDS: TNA # comma separated, choose from: TNA, NOTG, TCC, NOL, TWP
+          RAIDS: ${{ vars.RAIDS }} # comma separated, choose from: TNA, NOTG, TCC, NOL, TWP
           TIMEZONE: Europe/Amsterdam
           RESET_HOUR: 18
           PLAYER_LIMIT: 1000
