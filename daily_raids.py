@@ -133,13 +133,14 @@ def period_label(previous_iso, now, interim):
 
 # ---------------------------------------------------------------- image
 
-BG = (30, 31, 34)
-TITLE_BG = (43, 45, 49)
-ROW_COLORS = [(54, 56, 61), (30, 31, 34)]
-LINE = (205, 205, 210)
-ROW_LINE = (95, 97, 104)
-TEXT = (220, 221, 222)
-WHITE = (255, 255, 255)
+SS = 2  # draw at twice the size and scale down, for smooth edges
+PAGE_BG = (13, 15, 20)
+CARD_BG = (22, 25, 33)
+ROW_ALT = (28, 32, 42)
+DIVIDER = (52, 58, 74)
+ACCENT = (167, 139, 250)
+TEXT = (226, 230, 238)
+MUTED = (128, 137, 156)
 
 FONTS = {
     False: ["DejaVuSans.ttf", "LiberationSans-Regular.ttf", "segoeui.ttf", "arial.ttf"],
@@ -156,8 +157,9 @@ def font(size, bold=False):
     return ImageFont.load_default(size)
 
 
-HEADERS = ["Daily Rank", "Rank", "Name", "Score Δ", "Comp Δ", "Gambit Δ", "Ratio"]
+HEADERS = ["#", "LB Rank", "Name", "Score", "Runs", "Gambits", "Gambits/Run"]
 NAME_COL = 2
+RUNS_COL = 4
 
 
 def table_cells(rows):
@@ -166,7 +168,7 @@ def table_cells(rows):
             str(i),
             str(r["rank"]),
             r["name"],
-            f"{r['score']:,}",
+            f"+{r['score']:,}",
             f"{r['comp']:,}",
             f"{r['gambits']:,}",
             f"{r['gambits'] / r['comp']:.2f}",
@@ -175,49 +177,72 @@ def table_cells(rows):
     ]
 
 
-def render_table(title, rows):
-    """Draw a dark table like the usual raid leaderboard screenshots; returns PNG bytes."""
-    f_title, f_head, f_cell = font(38), font(30, bold=True), font(30)
-    pad, row_h, title_h = 16, 64, 78
+def render_table(heading, subtitle, rows):
+    """Draw the daily table as a rounded card with a heading; returns PNG bytes."""
+    s = SS
+    f_heading, f_sub = font(40 * s, bold=True), font(24 * s)
+    f_head = font(20 * s, bold=True)
+    f_cell, f_bold = font(28 * s), font(28 * s, bold=True)
+    margin, pad, row_h, top_h = 28 * s, 20 * s, 58 * s, 128 * s
+    labels = [h.upper() for h in HEADERS]
     cells = table_cells(rows)
 
     widths = [
-        max([f_head.getlength(h)] + [f_cell.getlength(row[i]) for row in cells]) + 2 * pad
-        for i, h in enumerate(HEADERS)
+        max([f_head.getlength(label)] + [f_bold.getlength(row[i]) for row in cells]) + 2 * pad
+        for i, label in enumerate(labels)
     ]
-    widths[NAME_COL] += 24  # a bit of air between the name and the numbers
-    title_w = f_title.getlength(title) + 60
-    if title_w > sum(widths):
-        widths[NAME_COL] += title_w - sum(widths)
+    widths[NAME_COL] += 32 * s  # a bit of air between the name and the numbers
+    heading_w = max(f_heading.getlength(heading), f_sub.getlength(subtitle)) + 2 * pad + 40 * s
+    if heading_w > sum(widths):
+        widths[NAME_COL] += heading_w - sum(widths)
     widths = [int(w) for w in widths]
-    width = sum(widths)
-    height = title_h + row_h * (len(cells) + 1)
+    card_w = sum(widths)
+    card_h = top_h + row_h * (len(cells) + 1) + pad
+    width, height = card_w + 2 * margin, card_h + 2 * margin
 
-    img = Image.new("RGB", (width, height), BG)
+    img = Image.new("RGB", (width, height), PAGE_BG)
     d = ImageDraw.Draw(img)
-    d.rectangle([0, 0, width, title_h], fill=TITLE_BG)
-    d.text((width / 2, title_h / 2), title, font=f_title, fill=WHITE, anchor="mm")
-    d.rectangle([0, title_h - 2, width, title_h + 1], fill=LINE)
+    x0, y0 = margin, margin
+    d.rounded_rectangle([x0, y0, x0 + card_w, y0 + card_h], radius=22 * s, fill=CARD_BG)
 
-    def draw_row(y, values, fnt, color):
-        x = 0
-        for i, (value, w) in enumerate(zip(values, widths)):
-            if i == NAME_COL:
-                d.text((x + pad, y + row_h / 2), value, font=fnt, fill=color, anchor="lm")
-            else:
-                d.text((x + w - pad, y + row_h / 2), value, font=fnt, fill=color, anchor="rm")
-            x += w
+    # heading with an accent bar
+    d.rounded_rectangle([x0 + pad, y0 + 30 * s, x0 + pad + 7 * s, y0 + 102 * s], radius=4 * s, fill=ACCENT)
+    d.text((x0 + pad + 24 * s, y0 + 28 * s), heading, font=f_heading, fill=TEXT, anchor="lt")
+    d.text((x0 + pad + 24 * s, y0 + 80 * s), subtitle, font=f_sub, fill=MUTED, anchor="lt")
 
-    y = title_h
-    draw_row(y, HEADERS, f_head, WHITE)
+    def draw_cell(i, x, w, y, value, fnt, color):
+        mid = y + row_h / 2
+        if i == 0:
+            d.text((x + w / 2, mid), value, font=fnt, fill=color, anchor="mm")
+        elif i == NAME_COL:
+            d.text((x + pad, mid), value, font=fnt, fill=color, anchor="lm")
+        else:
+            d.text((x + w - pad, mid), value, font=fnt, fill=color, anchor="rm")
+
+    y = y0 + top_h
+    x = x0
+    for i, (label, w) in enumerate(zip(labels, widths)):
+        draw_cell(i, x, w, y, label, f_head, ACCENT if i == RUNS_COL else MUTED)
+        x += w
     y += row_h
-    d.rectangle([0, y - 2, width, y + 1], fill=LINE)
-    for i, values in enumerate(cells):
-        d.rectangle([0, y + 2, width, y + row_h], fill=ROW_COLORS[i % 2])
-        draw_row(y, values, f_cell, TEXT)
-        y += row_h
-        d.line([0, y, width, y], fill=ROW_LINE, width=1)
+    d.line([x0 + pad, y, x0 + card_w - pad, y], fill=DIVIDER, width=2 * s)
 
+    for n, values in enumerate(cells):
+        if n % 2:
+            d.rounded_rectangle([x0 + 10 * s, y + 3 * s, x0 + card_w - 10 * s, y + row_h - 3 * s],
+                                radius=12 * s, fill=ROW_ALT)
+        x = x0
+        for i, (value, w) in enumerate(zip(values, widths)):
+            if i == RUNS_COL:
+                draw_cell(i, x, w, y, value, f_bold, ACCENT)
+            elif i in (0, 1):
+                draw_cell(i, x, w, y, value, f_cell, MUTED)
+            else:
+                draw_cell(i, x, w, y, value, f_cell, TEXT)
+            x += w
+        y += row_h
+
+    img = img.resize((width // s, height // s), Image.LANCZOS)
     buf = io.BytesIO()
     img.save(buf, "PNG", optimize=True)
     return buf.getvalue()
@@ -255,12 +280,12 @@ def build_messages(boards, previous, now, interim):
         players = daily_rows(boards[f"{key}SrPlayers"], previous["boards"].get(f"{key}SrPlayers", {}))
         if guilds:
             shown = guilds[:SHOW_GUILDS]
-            title = f"{short} Guild Raids {label}: Top {len(shown)}"
-            images.append((f"{short}_guilds_{slug}.png", render_table(title, shown)))
+            subtitle = f"{label}  ·  top {len(shown)} of {len(guilds)} guilds"
+            images.append((f"{short}_guilds_{slug}.png", render_table(f"{short} Guild Raids", subtitle, shown)))
         if players:
             shown = players[:SHOW_PLAYERS]
-            title = f"{short} Player Raids {label}: Top {len(shown)}"
-            images.append((f"{short}_players_{slug}.png", render_table(title, shown)))
+            subtitle = f"{label}  ·  top {len(shown)} of {len(players)} players"
+            images.append((f"{short}_players_{slug}.png", render_table(f"{short} Player Raids", subtitle, shown)))
         if images:
             if interim:
                 line = f"Daily raids for **{label}** so far (since {since:%Y-%m-%d %H:%M}, manual run)"
