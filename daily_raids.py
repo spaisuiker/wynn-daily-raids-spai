@@ -281,8 +281,9 @@ def build_messages(boards, previous, now, interim):
 
 def main():
     dry_run = "--dry-run" in sys.argv
-    webhook = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
-    if not webhook and not dry_run:
+    # one or more webhook URLs, one per line, to post in several channels
+    webhooks = os.environ.get("DISCORD_WEBHOOK_URL", "").split()
+    if not webhooks and not dry_run:
         sys.exit("DISCORD_WEBHOOK_URL is not set (add it as a GitHub Actions secret)")
     now = datetime.now(timezone.utc)
     previous = json.loads(SNAPSHOT.read_text(encoding="utf-8")) if SNAPSHOT.exists() else None
@@ -325,9 +326,10 @@ def main():
                 print(f"  wrote out/{name} ({len(png) // 1024} KB)")
         return
 
-    for content, images in messages:
-        post_to_discord(webhook, content, images)
-        time.sleep(1)
+    for webhook in webhooks:
+        for content, images in messages:
+            post_to_discord(webhook, content, images)
+            time.sleep(1)
 
     if previous is None or not interim:
         snapshot = {
