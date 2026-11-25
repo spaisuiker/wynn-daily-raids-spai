@@ -28,7 +28,7 @@ ALL_RAIDS = {
     "NOTG": ("Nest of the Grootslangs", "grootslang"),
     "TCC": ("The Canyon Colossus", "colossus"),
     "NOL": ("Orphion's Nexus of Light", "orphion"),
-    "TWP": ("The Wartorn Palace", "fruma"),
+    "WTP": ("The Wartorn Palace", "fruma"),
 }
 
 
@@ -38,6 +38,7 @@ def env_int(name, default):
 
 def env_raids():
     names = [n.strip().upper() for n in (os.environ.get("RAIDS") or "TNA").split(",") if n.strip()]
+    names = ["WTP" if n == "TWP" else n for n in names]  # old name of the Wartorn Palace
     unknown = [n for n in names if n not in ALL_RAIDS]
     if unknown or not names:
         sys.exit(f"Invalid RAIDS setting {os.environ.get('RAIDS')!r}. Choose from: {', '.join(ALL_RAIDS)}")
